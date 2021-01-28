@@ -9,10 +9,10 @@ def to_MMG_band_format(arrays):
 
 
 def format_and_split_sets():        
-    df = pd.read_hdf("./data/mmg-03-sequential-2018-05-11-10-47-44-485.hdf5")
+    df = pd.read_hdf("./data/mmg_gestures-03-sequential-2018-05-11-10-47-44-485.hdf5")
 
     numpy_array = df.to_numpy()
-    arrays, labels = numpy_array[:,:-13], numpy_array[:,-5]
+    arrays, labels = numpy_array[:,:-16], numpy_array[:,-1]
 
     arrays = to_MMG_band_format(arrays)
     

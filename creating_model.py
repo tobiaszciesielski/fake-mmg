@@ -3,7 +3,10 @@ import pickle
 from typing import Counter
 import numpy as np
 from sklearn import svm, model_selection, metrics
+from sklearn.model_selection import StratifiedShuffleSplit
+from sklearn.model_selection import GridSearchCV
 import pandas as pd
+from sklearn.model_selection import cross_val_score
 
 
 with open('calibration_params.json', 'r') as file:
@@ -63,20 +66,9 @@ def change_labels_name(dict_to_change, new_shape):
     new_dict[7]  = dict_to_change[9][:new_shape]
     return new_dict
 
-def main():
-    # train:
-    # mmg_gestures-03-sequential-2018-05-11-10-47-44-485.hdf5
-    # mmg_gestures-03-sequential-2018-06-14-12-16-35-837.hdf5
-    # mmg_gestures-04-sequential-2018-03-28-12-20-57-890.hdf5
-    # mmg_gestures-04-repeats_long-2018-03-28-12-14-49-698.hdf5
-    # mmg_gestures-04-repeats_short-2018-06-18-14-46-35-634.hdf5
-
-    # test:
-    # mmg_gestures-04-sequential-2018-06-18-14-40-48-463.hdf5
-    
-    df = pd.read_hdf("./data/mmg_gestures-04-sequential-2018-06-18-14-40-48-463.hdf5")
-    # print(df.columns)
-
+def process_data(file_name):
+    # Read hdf5 format
+    df = pd.read_hdf("./data/{}".format(file_name))
 
     # Get only valid data
     df = df[df["TRAJ_GT"].notna()]
@@ -84,13 +76,9 @@ def main():
     # Convert to numpy
     numpy_array = df.to_numpy()
 
-    # print(Counter(numpy_array[:,-1]))
-    # Counter({0.0: 53354, -1.0: 15312, 1.0: 5469, 7.0: 5202, 3.0: 5135, 6.0: 5122, 8.0: 5122, 2.0: 5110, 9.0: 5110})
-
-    # print("\n\n===TAKING MMG DATA COLUMNS===")
+    # Taking specified columns of mmg data 
     arrays = np.array(numpy_array[:,:-16], dtype=float) 
     labels_gt = np.array(numpy_array[:,-1], dtype=int)
-    # print(arrays[0], labels[0], labels_gt[0])
 
     current_gesture = 0
     all_gestures = []
@@ -106,11 +94,10 @@ def main():
                 to_cut = to_cut[100:]   # cut first 100 samples
                 cutted = to_cut[:-100]  # cut last 100 samples
                 all_gestures.append((current_gesture, cutted))    # save current gesture data
-                # print(current_gesture, before_cutting, len(cutted))
             gesture_data=[]     # and clear list for next data
-    # return
 
-    # flatten array and tag every sample
+
+    # Flatten array and tag every sample
     labels = []
     samples = []
     for gesture in all_gestures:
@@ -120,81 +107,87 @@ def main():
             samples.append(sample)
     arrays = np.array(samples)
 
-    # print("\n\n===CORRECT DATA COUNT===")
-    # print(len(labels))
-
-    # print("\n\n===TO MMG FORMAT===")
+    # To MMG Band format
     arrays = to_MMG_band_format(arrays)
-    # print(arrays[0], labels[0])
-    
-    # print("\n\n===ACCELEROMETER CALIBRATION===")
+
+    # Accelerometer calibration
     arrays = [calibrate_accelerometer(packet) for packet in arrays]
-    # print(arrays[0])
-    
-    # print("\n\n===GROUP DATA BY GESTURE===")
+
+    # Group data by gesture
     splitted_data = split_data_by_gesture(arrays, labels)
-    # for key, value in splitted_data.items():
-    #     print(key, value.shape)
 
-    # Find the smallest amount of data for the gesture
-    # print("\n\n===NEW SHAPE OF EACH GESTURE DATA===")
+    # Find the smallest amount of data for the gesture reshape every gesture data
     new_shape = min([value.shape[0] for key, value in splitted_data.items()])
-    # print(new_shape)
     
-    # print("\n\n===CHANGE LABEL NAME===")
+    # Change labels name
     correct_data = change_labels_name(splitted_data, new_shape)
-    # for key, value in correct_data.items():
-    #     print(key, value.shape)
+    for key, value in correct_data.items():
+        print("Gesture:", key, "Features:", len(value))
 
-    buffer = {'features': [], 'labels': []}
+    buff = {'features': [], 'labels': []}
     for gesture, data in correct_data.items():
         for i in range(0, data.shape[0], SAMPLES_PER_STRIDE):
             features = get_accelerometer_features(data[i:i+SAMPLES_PER_WINDOW])
-            buffer['features'].append(features)
-            buffer['labels'].append(gesture)
-            # print(features)
+            buff['features'].append(features)
+            buff['labels'].append(gesture)
 
-    for i in range(0, len(buffer["features"]), 10):
-        print(buffer["labels"][i], buffer["features"][i])
+    return buff['labels'], buff['features']
 
-    # TRAIN WITH ALL DATA
+def main():
+    DATA_SETS = [
+        # "mmg_gestures-03-sequential-2018-05-11-10-47-44-485.hdf5", <- this is used for sending test
+        "mmg_gestures-03-sequential-2018-06-14-12-16-35-837.hdf5",
+        "mmg_gestures-04-sequential-2018-03-28-12-20-57-890.hdf5",
+        "mmg_gestures-04-sequential-2018-06-18-14-40-48-463.hdf5",
+        "mmg_gestures-04-repeats_long-2018-03-28-12-14-49-698.hdf5",
+        "mmg_gestures-04-repeats_long-2018-06-18-14-25-59-114.hdf5",
+        "mmg_gestures-04-repeats_long-2018-06-26-12-22-52-038.hdf5",
+        "mmg_gestures-04-repeats_short-2018-06-18-14-46-35-634.hdf5",
+        "mmg_gestures-04-repeats_short-2018-07-02-11-34-26-385.hdf5",
+        "mmg_gestures-04-repeats_short-2018-07-03-14-02-31-148.hdf5",
+    ]
 
-    # loaded_model = pickle.load(open("mmg_model.pkl", 'rb'))
+
+    buffer = {'features': [], 'labels': []}
+    for i, file in enumerate(DATA_SETS):
+        print(f"({i+1}/{len(DATA_SETS)}) Reading data from {file}")
+        labels, features = process_data(file)
+        buffer['labels'].extend(labels)
+        buffer['features'].extend(features)
+
+    print("Creating model.")
+
+    # Hyper params tuning
+    # param_grid = {'C': [0.05, 0.1, 1, 10, 100, 500, 1000],  
+    #           'gamma': [1, 0.5, 0.1, 0.01, 0.001, 0.0001], 
+    #           'kernel': ['rbf']}  
+    # grid = GridSearchCV(svm.SVC(), param_grid, refit = True, verbose = 3) 
+    # grid.fit(buffer['features'], buffer['labels'])
+    # print(grid.best_params_, grid.best_estimator_) 
+
+    # result: {'C': 1000, 'gamma': 1, 'kernel': 'rbf'} SVC(C=1000, gamma=1)
+
+    # # cross validation
+    # clf = svm.SVC(probability=True, kernel='rbf', C=1000, gamma=1)
+    # scores = cross_val_score(clf, buffer['features'], buffer['labels'], cv=20)
+    # print(np.mean(np.array(scores)))
+
+    # Train/Test set split
+    accs = []
+    for i in range(1):
+        X_train, X_test, y_train, y_test = model_selection.train_test_split(buffer['features'], buffer['labels'], test_size=0.25)
+        print(len(buffer['labels']), "splited to", len(X_train), "train and", len(X_test), "test")
+
+        clf = svm.SVC(probability=True, kernel='rbf', C=1000, gamma=1)
+        clf.fit(X_train, y_train)
+        y_pred_aft = clf.predict(X_test)
+        acc = metrics.accuracy_score(y_test, y_pred_aft)
+        accs.append(acc)
     
-    # loaded_model.fit(buffer['features'], buffer['labels'])
+    print(np.mean(np.array(accs)))
+    # 0.23960784313725486
 
-    # pickle.dump(loaded_model, open("mmg_model.pkl", 'wb'))
-
-
-    # # # TRAIN/TEST
-
-    # print("\n\n===TRAIN TEST SPLIT===")
-    X_train, X_test, y_train, y_test = model_selection.train_test_split(buffer['features'], buffer['labels'], test_size=0.2)
-    # print(len(buffer['labels']), "splited to", len(X_train), "train and", len(X_test), "test")
-    
-    # # # TRAIN
-    clf = svm.SVC(probability=True)
-    clf.fit(X_train, y_train)
-
-    # # # # TEST1 # need probability=true
-    # # # print(buffer['features'][724])
-    # # # print(buffer['labels'][724])
-    # # # y_pred = clf.predict_proba([X_test[724]])[0]
-    # # # prob_dist={label: round(prob, 3) for (label, prob) in zip(GESTURES, y_pred)}
-    # # # for key, value in prob_dist.items():
-    # # #     print(key, value)
-
-    # # TEST2
-    y_pred = clf.predict(X_test)
-    acc = metrics.accuracy_score(y_test, y_pred)
-
-    # print("\n\n===ACCURACY===")
-    print(acc)
+    pickle.dump(clf, open("mmg_model.pkl", 'wb'))
 
 if __name__ == "__main__":
     main()
-    # acc = [main() for i in range(100)]
-    # print(min(acc), max(acc))       
-
-    # 0.5333333333333333
-    # 0.06666666666666667
