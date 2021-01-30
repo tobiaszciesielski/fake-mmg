@@ -75,7 +75,6 @@ def fake_mmg(gesture):
         }
         timer += 20000
         i+=4
-        # print(json.dumps(dict_to_json))
         print(f"\nGesture: {GESTURES[gesture]}\nLabel: \'{gesture}\'\nData: {i}/{len(gesture_data)}\nFake time: {timer}")
         mqtt_client.publish(DATA_STREAM_TOPIC, json.dumps(dict_to_json))
 

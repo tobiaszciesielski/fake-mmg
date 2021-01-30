@@ -1,6 +1,0 @@
-INFO: Start fine tuning. from python_scripts/01_fine_tune.py
-Fine tuning results:
-accuracy_before_fine_tuning_in_percent: 28.6
-accuracy_after_fine_tuning_in_percent: 22.2
-SUCCESS: Fine tuning finished. from python_scripts/01_fine_tune.py
-
