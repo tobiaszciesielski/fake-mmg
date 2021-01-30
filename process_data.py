@@ -135,7 +135,7 @@ def process_data(file_name):
 
 def main():
     DATA_SETS = [
-        # "mmg_gestures-03-sequential-2018-05-11-10-47-44-485.hdf5", <- this is used for sending test
+        "mmg_gestures-03-sequential-2018-05-11-10-47-44-485.hdf5", #<- this is used for sending test
         "mmg_gestures-03-sequential-2018-06-14-12-16-35-837.hdf5",
         "mmg_gestures-04-sequential-2018-03-28-12-20-57-890.hdf5",
         "mmg_gestures-04-sequential-2018-06-18-14-40-48-463.hdf5",
@@ -155,39 +155,13 @@ def main():
         buffer['labels'].extend(labels)
         buffer['features'].extend(features)
 
-    print("Creating model.")
+    arr = [buffer['features'], buffer['labels']]
+    print(len(buffer['features']))
+    np.save("data", np.array(arr, dtype=object))
 
-    # Hyper params tuning
-    # param_grid = {'C': [0.05, 0.1, 1, 10, 100, 500, 1000],  
-    #           'gamma': [1, 0.5, 0.1, 0.01, 0.001, 0.0001], 
-    #           'kernel': ['rbf']}  
-    # grid = GridSearchCV(svm.SVC(), param_grid, refit = True, verbose = 3) 
-    # grid.fit(buffer['features'], buffer['labels'])
-    # print(grid.best_params_, grid.best_estimator_) 
-
-    # result: {'C': 1000, 'gamma': 1, 'kernel': 'rbf'} SVC(C=1000, gamma=1)
-
-    # # cross validation
-    # clf = svm.SVC(probability=True, kernel='rbf', C=1000, gamma=1)
-    # scores = cross_val_score(clf, buffer['features'], buffer['labels'], cv=20)
-    # print(np.mean(np.array(scores)))
-
-    # Train/Test set split
-    accs = []
-    for i in range(1):
-        X_train, X_test, y_train, y_test = model_selection.train_test_split(buffer['features'], buffer['labels'], test_size=0.25)
-        print(len(buffer['labels']), "splited to", len(X_train), "train and", len(X_test), "test")
-
-        clf = svm.SVC(probability=True, kernel='rbf', C=1000, gamma=1)
-        clf.fit(X_train, y_train)
-        y_pred_aft = clf.predict(X_test)
-        acc = metrics.accuracy_score(y_test, y_pred_aft)
-        accs.append(acc)
+    print("Data Saved properly." )
+    return
     
-    print(np.mean(np.array(accs)))
-    # 0.23960784313725486
-
-    pickle.dump(clf, open("mmg_model.pkl", 'wb'))
 
 if __name__ == "__main__":
     main()
